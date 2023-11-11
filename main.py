@@ -3,6 +3,7 @@ import sys
 import random
 from tkinter import * 
 import os
+import math
 
 map_width = 1056 // 32
 map_height = 704 // 32
@@ -151,21 +152,61 @@ class Player:
         self.respawn_x, self.respawn_y = self.app.respawn_pos  # Set from the Application
         self.speed = 2
         try:
-            self.texture = pygame.transform.scale(pygame.image.load("Resources/player.png"), (32, 32))
+            self.u1 = pygame.transform.scale(pygame.image.load("Resources/player_up_1.png"), (32, 32))
+            self.u2 = pygame.transform.scale(pygame.image.load("Resources/player_up_2.png"), (32, 32))
+            self.d1 = pygame.transform.scale(pygame.image.load("Resources/player_down_1.png"), (32, 32))
+            self.d2 = pygame.transform.scale(pygame.image.load("Resources/player_down_2.png"), (32, 32))
+            self.l1 = pygame.transform.scale(pygame.image.load("Resources/player_left_1.png"), (32, 32))
+            self.l2 = pygame.transform.scale(pygame.image.load("Resources/player_left_2.png"), (32, 32))
+            self.r1 = pygame.transform.scale(pygame.image.load("Resources/player_right_1.png"), (32, 32))
+            self.r2 = pygame.transform.scale(pygame.image.load("Resources/player_right_2.png"), (32, 32))
         except:
-            self.texture = pygame.Surface((32, 32), pygame.SRCALPHA)
-            self.texture.fill((255, 0, 255))
+            self.u1 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.u1.fill((255, 0, 255))
+            self.u2 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.u2.fill((255, 0, 255))
+            self.d1 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.d1.fill((255, 0, 255))
+            self.d1 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.d1.fill((255, 0, 255))
+            self.l1 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.l1.fill((255, 0, 255))
+            self.l2 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.l2.fill((255, 0, 255))
+            self.r1 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.r1.fill((255, 0, 255))
+            self.r2 = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.r2.fill((255, 0, 255))
+        self.u = [self.u1, self.u2]
+        self.d = [self.d1, self.d2]
+        self.l = [self.l1, self.l2]
+        self.r = [self.r1, self.r2]
+        self.drs = [self.u, self.d, self.l, self.r]
+        self.dr = 2
+        self.tc = 1
     
     def update(self):
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w]:
             self.y -= self.speed * self.app.dt
+            if self.tc == 1: self.tc = 2
+            else: self.tc = 1
+            self.dr = 1
         if keys[pygame.K_s]:
             self.y += self.speed * self.app.dt
+            if self.tc == 1: self.tc = 2
+            else: self.tc = 1
+            self.dr = 2
         if keys[pygame.K_a]:
             self.x -= self.speed * self.app.dt
+            if self.tc == 1: self.tc = 2
+            else: self.tc = 1
+            self.dr = 3
         if keys[pygame.K_d]:
             self.x += self.speed * self.app.dt
+            if self.tc == 1: self.tc = 2
+            else: self.tc = 1
+            self.dr = 4
 
         if self.app.map.grid[int(self.y)][int(self.x)][-1] == 0:
             self.death_animation()
@@ -176,7 +217,7 @@ class Player:
             self.app.particles.append(Particle(self.app, self.x * 32, self.y * 32, (255, 0, 0), (random.randint(-5, 5), random.randint(-15, -10))))
 
     def draw(self):
-        self.app.screen.blit(self.texture, (self.x * 32, self.y * 32))
+        self.app.screen.blit(self.drs[self.dr - 1][self.tc - 1], (self.x * 32, self.y * 32))
 
 class Container:
     def __init__(self, items: list[tuple[int, int]], coords: tuple[int, int]):
@@ -191,6 +232,10 @@ class Gameplay:
         self.fps = 60
         self.dt = 1 / self.fps
 
+        self.sounds = {
+            "vine_boom": pygame.mixer.Sound("Resources/vine-boom.mp3")
+        }
+
         self.map = Map(self)
         self.particles: list[Particle] = []
 
@@ -198,15 +243,17 @@ class Gameplay:
         self.player_pos = (0, 0)
         self.respawn_pos = (0, 0)
 
+        self.hotbar = Hotbar(self)
+
         self.readSave(save)
 
         self.player = Player(self)
         self.player.x, self.player.y = self.player_pos
-        self.hotbar = Hotbar(self)
 
         self.containers: list[Container] = []
 
         self.save = save
+        self.crafting = False
 
         pygame.display.set_caption("ONLAND")
 
@@ -220,7 +267,7 @@ class Gameplay:
             sys.exit()
 
         # Load the map grid
-        for line in lines[:-1]:  # Exclude the last line which has player data
+        for line in lines[:-2]:  # Exclude the last line which has player data
             cells = line.split(" ")
             x, y = int(cells[0]), int(cells[1])
             # Clear the cell before appending new objects
@@ -230,14 +277,27 @@ class Gameplay:
                 self.map.grid[y][x].append(int(obj_id))
 
         # Extract player and respawn positions from the last line
-        player_data = lines[-1].split(" ")
+        player_data = lines[-2].split(" ")
         if len(player_data) != 4:
             print("The last line in the save file does not contain exactly four integers for player and respawn positions.")
             sys.exit()
 
         self.player_pos = (int(player_data[0]), int(player_data[1]))
         self.respawn_pos = (int(player_data[2]), int(player_data[3]))
+        hotbar_data = lines[-1]
+        hotbar_items = hotbar_data.split(' ')
+        #self.hotbar.items = [(int(hotbar_items[i]), int(hotbar_items[i + 1])) for i in range(0, len(hotbar_items), 2)]
+        self.hotbar.items = []
+        for i in range(0, len(hotbar_items), 2):
+            if (int(hotbar_items[i]), int(hotbar_items[i + 1])) == (0, 0):
+                self.hotbar.items.append(None)
+            else:
+                self.hotbar.items.append((int(hotbar_items[i]), int(hotbar_items[i + 1])))
 
+        if len(self.hotbar.items) < 8:
+            a = 8 - len(self.hotbar.items)
+            for i in range(a):
+                self.hotbar.items.append(None)
 
     def writeSave(self, name: str):
         with open(f"Saves/{name}.ols", "w") as file:
@@ -245,11 +305,25 @@ class Gameplay:
                 for x, cell in enumerate(row):
                     if cell != [0]:  # Check that the cell is not just water
                         # Write the cell's content, skipping the first element if it's 0
-                        content = " ".join(str(id) for id in cell if id != 0)
+                        content = "0 " + " ".join(str(id) for id in cell if id != 0)
                         if content:  # Only write if there's something other than water
                             file.write(f"{x} {y} {content}\n")
             file.write(f"{int(self.player.x)} {int(self.player.y)} ")
             file.write(f"{int(self.player.respawn_x)} {int(self.player.respawn_y)}\n")
+            hotbar_data = ""
+            for item in self.hotbar.items:
+                if item == None:
+                    if hotbar_data == "":
+                        hotbar_data += "0 0"
+                    else:
+                        hotbar_data += " 0 0"
+                else:
+                    if hotbar_data == "":
+                        hotbar_data += f"{item[0]} {item[1]}"
+                    else:
+                        hotbar_data += f" {item[0]} {item[1]}"
+
+            file.write(hotbar_data)
             file.close()
 
     def update(self):
@@ -327,6 +401,15 @@ class Gameplay:
                                             if not slot:  # Empty slot found
                                                 self.hotbar.items[i] = (id, 1)
                                                 break
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_c: self.crafting = not self.crafting
+                if event.key == pygame.K_e:
+                    self.screen.fill("yellow")
+                    for i in range(360):
+                        self.particles.append(Particle(self, self.player.x * 32, self.player.y * 32, random.choice([(255, 0, 0), "yellow"]), (random.randint(6, 12) * math.cos(i), random.randint(12, 24) * math.sin(i))))
+                    self.player.x, self.player.y = self.respawn_pos
+                    pygame.mixer.Channel(1).play(self.sounds["vine_boom"])
 
         self.player.update()
 

@@ -79,7 +79,8 @@ def save_map_to_file(map_data, respawn_point, filename):
                         file.write(f"{x} {y} {content}\n")
         # Add player position and respawn point at the end
         player_pos = respawn_point if respawn_point else (0, 0)
-        file.write(f"{player_pos[0]} {player_pos[1]} {player_pos[0]} {player_pos[1]}")
+        file.write(f"{player_pos[0]} {player_pos[1]} {player_pos[0]} {player_pos[1]}\n")
+        file.write("0 0 0 0")
 
 def main():
     pygame.init()
